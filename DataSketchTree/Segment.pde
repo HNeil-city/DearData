@@ -25,7 +25,7 @@ public class Segment {
 
     // Position of the mouse along the line, clamped to the segment
     float t = (lenSq == 0) ? 0 : constrain(((mouseX - x1) * dx + (mouseY - y1) * dy) / lenSq, 0, 1);
-    float tol = strokeWeight * 2;
+    float tol = strokeWeight;
     return dist(mouseX, mouseY, x1 + t * dx, y1 + t * dy) <= tol;
   }
 

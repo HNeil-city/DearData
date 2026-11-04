@@ -2,13 +2,14 @@
 // Angle = actual/estimated hours, length = actual hours, colour = group. Reshuffles itself every SHUFFLE_EVERY frames.
 
 final float ANGLE_RANGE = QUARTER_PI; // max lean away from straight up
-final float SIBLING_SPREAD = 0.4; // radians between siblings so they don't overlap (0 = off)
+final float SIBLING_SPREAD = 0; // radians between siblings so they don't overlap (0 = off)
 final float LEN_SCALE = 25;
 final int MAX_CHILDREN = 2; // most segments that can sprout from one segment
 final int TRUNK_WEIGHT = 6; 
 final String DATA_FILE = "../feature_data_tree.csv";
 
-final int SHUFFLE_EVERY = 5; // frames between shuffles (60 frames = 1 second)
+final int MAX_SHUFFLE_FRAMES = 50; // frames between shuffles (60 frames = 1 second)
+int shuffleFrame;
 
 // One entry per CSV row (same index in every array, shuffled together)
 int rowCount;
@@ -18,7 +19,11 @@ float[] ratios, hours;    // NaN when the feature has no actual hours yet
 
 ArrayList<String> groupNames = new ArrayList<String>();
 ArrayList<Branch> branches = new ArrayList<Branch>();
+ArrayList<GroupSelector> selectors = new ArrayList<GroupSelector>();
+String currentlySelected;
 float originX, originY;
+
+Slider slider;
 
 void setup() {
   size(800, 800);
@@ -26,24 +31,45 @@ void setup() {
   originX = width / 2;
   originY = height - 60;   // low origin so the tree grows upward into the window
   loadData();
+  setSelectors(50, 10, 35);
   buildTree(true);
+  
+  slider = new Slider(20, height - 60, 10, 30, false);
 }
 
 void draw() {
-  if (frameCount % SHUFFLE_EVERY == 0) {
-    shuffleData();
+  currentlySelected = getSelectedGroup();
+  //println(currentlySelected);
+  if (slider.getSlidePer() < 0.01) shuffleFrame = frameCount + 1; // dont shuffle
+  else if (slider.getSlidePer() > 0.99) shuffleFrame = 1; // min (every frame)
+  else{
+    float per = slider.getSlidePer();
+    shuffleFrame = round(MAX_SHUFFLE_FRAMES * (1 - per));
+  }
+  if (frameCount % shuffleFrame == 0) {
+    shuffleData(); //Shuffle the data then rebuils the tree
     buildTree(false);
   }
   background(0);
+  slider.drawSlider();
   for (Branch b : branches) b.drawThisBranch();
+  for (GroupSelector g : selectors) g.drawThisSelector();
   for (Branch b : branches) b.drawLabels();   // labels last so nothing covers them
 }
 
 // re-read the csv
 void keyPressed() {
+  slider.moveWithKey();
   if (key == 'r' || key == 'R') {
     loadData();
     buildTree(true);
+  }
+}
+
+//on mouse pressed stuff
+void mousePressed() {
+  for(GroupSelector g : selectors) {
+    g.setLastPressed();
   }
 }
 
@@ -51,7 +77,7 @@ void keyPressed() {
 void shuffleData() {
   for (int i = rowCount - 1; i > 0; i--) {
     swapRows(i, int(random(i + 1)));
-  }
+  } 
 }
 
 void swapRows(int a, int b) {
@@ -85,6 +111,37 @@ void loadData() {
 
     if (!groupNames.contains(groups[i])) groupNames.add(groups[i]);
   }
+}
+
+// set group selector stuff
+void setSelectors(float sx, float sy, float size){
+  selectors.clear();
+  for(String s : groupNames){
+    float hue = hueOf(s);
+    GroupSelector newSelector = new GroupSelector(hue);
+    selectors.add(newSelector);
+  }
+  
+  for(GroupSelector g : selectors){
+    g.setDimensions(sx, sy, size);
+    sx += size *1.2;
+  }
+}
+
+// detect which groupName is currently selected
+String getSelectedGroup(){
+  GroupSelector selected = null;
+  
+  for (GroupSelector g : selectors){
+    if (g.isSelected()) { 
+      selected = g; 
+      break; 
+    }
+  }
+  
+  if (selected == null) return "ALL";
+  int ind = selectors.indexOf(selected);
+  return groupNames.get(ind);
 }
 
 // parse sheet cell to float
